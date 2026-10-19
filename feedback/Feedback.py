@@ -6,7 +6,7 @@ import spacy
 nlp = spacy.load("nl_core_news_sm")
 
 def prompt_EULLM(prompt, stream_):
-    stream = ollama.chat(
+    stream =  ollama.chat(
         model="jobautomation/OpenEuroLLM-Dutch",
         messages=[
             {
@@ -15,12 +15,10 @@ def prompt_EULLM(prompt, stream_):
             }
         ],
         options={
-            "temperature":0.09,
-            # "num_predict": 40,
-            # "num_ctx": 512,
+            "temperature": 0.0,
+            "num_gpu": 99,
         },
-        keep_alive="10m",
-        stream=stream_
+        keep_alive="30m",
     )
     if stream_:
         result = ""
