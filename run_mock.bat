@@ -1,0 +1,1 @@
+uvicorn app.server_mock:app --reload

@@ -1,0 +1,65 @@
+de beer loopt
+ik loop
+hij loopt 
+zij loopt
+het beertje loopt
+hij loopt naar huis
+de beer loopt naar huis
+de beer loopt in het park
+de beer loopt naar huis
+de beer gooit een rode bal in het park
+de beer gooit de rode bal in het park
+ik loop naar huis
+hij heeft de bal
+hij heeft de bal gegooid
+hij gooit de grote rode bal
+onze kat loopt naar huis
+onze katten lopen
+ons huis zwemt
+onze huizen zwemmen
+hij eet de appels aan de boom
+Een hond rent
+mijn grote hond rent door het huis
+de grote kat eet de kleine muis
+
+De jongen eet een appel.
+Het meisje speelt met haar pop.
+De honden rennen in de tuin.
+Mijn broer fietst naar school.
+De kinderen maken een mooie tekening.
+Ik heb gisteren een boek gelezen.
+Zij gaat morgen naar de winkel.
+Wij spelen elke middag buiten.
+De kat slaapt op de stoel.
+De kleine hond blaft naar de man.
+Ik geef mijn vriend een bal.
+De juf vertelt een verhaal aan de kinderen.
+Mijn zusje kan goed zwemmen.
+De jongen wil met zijn vrienden voetballen.
+Ik zie de rode auto op straat.
+
+ik eet het eten
+ik eet eten
+ik eet de honing
+ik eet honing
+
+ik eet lekkere oranje honing
+ik eet lekkere honing
+
+de grote boze oranje kat eet de kleine lieve grijze muis
+het grote huis staat
+het grote oranje huis staat
+haar grote oranje huis staat
+zijn grote oranje huis staat
+zijn grote boze oranje grijze huis staat
+
+# De jongen loopt naar huis omdat hij moe is.
+# Omdat het regent, blijft het meisje binnen.
+# Als de zon schijnt, spelen we buiten.
+# Vandaag gaat mijn moeder naar de markt.
+# Morgen neemt de vader zijn dochter mee naar het park.
+# Ik heb geen zin om naar bed te gaan.
+# De hond rent sneller dan de kat.
+# Waar legt het meisje haar jas?
+# Heeft de jongen zijn huiswerk al gemaakt?
+# De kinderen lachen omdat de clown een grappige hoed draagt.

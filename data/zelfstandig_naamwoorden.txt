@@ -1,0 +1,54 @@
+het kind
+de man
+de vrouw
+de jongen
+het meisje
+de meid
+
+de vriend
+de vriendin
+de broer
+de zus
+de vader
+de moeder
+de zoon
+de dochter
+de juf
+
+het vriendje
+het vriendinnetje
+het broertje
+het zusje
+het vadertje
+het moedertje
+het zoontje
+het dochtertje
+
+de hond
+het hondje
+de kat
+het katje
+de beer
+het beertje
+
+de bal
+de appel
+het boek
+het huis
+het park
+de stoel
+de tafel
+de lamp
+de tuin
+de tekening
+de winkel
+de pop
+de auto
+het verhaal
+de boom
+de muis
+de honing
+
+# ontelbaar (o)
+het eten o
+de honing o
