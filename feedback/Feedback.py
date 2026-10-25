@@ -16,10 +16,9 @@ def prompt_EULLM(prompt, stream_):
         ],
         options={
             "temperature": 0.0,
-            # "num_gpu": 99,
+            "num_gpu": 99,
         },
-        stream=stream_,
-        keep_alive="10m",
+        keep_alive="30m",
     )
     if stream_:
         result = ""
