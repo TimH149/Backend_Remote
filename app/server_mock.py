@@ -12,6 +12,7 @@ async def transcribe(file: UploadFile):
 async def grammar_check(request: GrammarCheckRequest):
     return {
                 "correct": True,
+                "correction": "none",
                 "feedback": "Je bent een topper! Goed gedaan."
             }
 
@@ -19,13 +20,24 @@ async def grammar_check(request: GrammarCheckRequest):
 async def grammar_check_stage_1(request: GrammarCheckRequest):
     return {
                 "correct": True,
+                "correction": "none",
                 "feedback": "Je bent een topper! Goed gedaan."
+            }
+
+@app.post("/grammar-check/easy")
+async def check_grammar_easy(request: GrammarCheckRequest):
+    return {
+                "correct": True,
+                "feedback": "Je bent een topper! Goed gedaan.",
+                "correction": "",
+                "mistake_type": None
             }
 
 @app.post("/grammar-check/stage-3")
 async def grammar_check_stage_3(request: GrammarCheckRequest):
     return {
                 "correct": True,
+                "correction": "none",
                 "feedback": "Je bent een topper! Goed gedaan."
             }
 

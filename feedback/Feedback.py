@@ -6,7 +6,7 @@ import spacy
 nlp = spacy.load("nl_core_news_sm")
 
 def prompt_EULLM(prompt, stream_):
-    stream = ollama.chat(
+    stream =  ollama.chat(
         model="jobautomation/OpenEuroLLM-Dutch",
         messages=[
             {
@@ -15,12 +15,11 @@ def prompt_EULLM(prompt, stream_):
             }
         ],
         options={
-            "temperature":0.09,
-            # "num_predict": 40,
-            # "num_ctx": 512,
+            "temperature": 0.0,
+            # "num_gpu": 99,
         },
+        stream=stream_,
         keep_alive="10m",
-        stream=stream_
     )
     if stream_:
         result = ""
@@ -152,8 +151,8 @@ def extract_changes(original, corrected):
 
     matcher = SequenceMatcher(
         None,
-        original_words,
-        corrected_words
+        [word.casefold() for word in original_words], 
+        [word.casefold() for word in corrected_words]
     )
 
     changes = []
@@ -163,12 +162,17 @@ def extract_changes(original, corrected):
         if tag == "equal":
             continue
 
-        original_part = original_words[i1:i2]
-        corrected_part = corrected_words[j1:j2]
-
-        # Tokens belonging to the changed regions
-        orig_tokens = doc_orig[i1:i2]
-        corr_tokens = doc_corr[j1:j2]
+        # Ignore punctuation so it does not change the grammatical category.
+        orig_tokens = [
+            token for token in doc_orig[i1:i2]
+            if token.pos_ not in {"SPACE", "PUNCT"}
+        ]
+        corr_tokens = [
+            token for token in doc_corr[j1:j2]
+            if token.pos_ not in {"SPACE", "PUNCT"}
+        ]
+        original_part = [token.text for token in orig_tokens]
+        corrected_part = [token.text for token in corr_tokens]
 
         # -----------------------------------------------------
         # 1. Grammatical information
@@ -371,31 +375,7 @@ def get_feedback_prompt(changes):
   """
 
 def get_correction_prompt(zin):
-    return f"""Corrigeer deze Nederlandse zin zonder de betekenis te veranderen of onnodig te herschrijven. Geef enkel de correcte zin: 
-        {zin}"""
-def get_correction_prompt(zin):
-    return f"""Corrigeer deze zin grammaticaal zonder de betekenis te veranderen, te herschrijven of vloeiender te laten. Geef enkel de correcte zin, als de zin al grammaticaal correct is, geef exact de originele zin terug.: 
-        {zin}"""
-
-def get_correction_prompt(zin):
-    return f"""Corrigeer uitsluitend grammaticale fouten in deze Nederlandse zin.
-Herschrijf niets. Correcte spreektaal is toegestaan.
-Als de zin correct is, geef hem exact ongewijzigd terug.
-Geef alleen de zin.
-
-{zin}"""
-
-# def get_correction_prompt(zin):
-#     return f"""Corrigeer deze Nederlandse zin alleen als er een grammaticale fout in staat.
-
-# - Verander niets als de zin grammaticaal correct is.
-# - Behoud de oorspronkelijke woorden en zinsstructuur zoveel mogelijk.
-# - Verander de betekenis niet.
-# - Geef alleen de gecorrigeerde zin.
-# - Als de zin al correct is, geef exact de originele zin terug.
-
-# Zin:
-# {zin}"""
+    return f"""Corrigeer alleen grammaticale fouten. Verander verder niets. Geef alleen de zin: {zin}"""    
 
 
 
@@ -669,6 +649,251 @@ def genereer_feedback(change, feedback_prompt):
         prompt_EULLM(feedback_prompt, stream_=True)
     )
 
+def check_grammar_easy(change, feedback_prompt):
+    """
+    Generate personalized Dutch feedback based on the output
+    of extract_changes().
+
+    Input:
+        change: one dictionary returned by extract_changes()
+
+    Output:
+        str: personalized feedback/question
+    """
+
+    fout = change.get("fout", "").strip()
+    fout_lower = fout.lower()
+    correctie = change.get("correctie", "").strip()
+    correctie_lower = correctie.lower()
+
+    orig_pos = change.get("orig_woordsoort")
+    corr_pos = change.get("woordsoort")
+
+    orig_vorm = change.get("orig_vorm", {})
+    corr_vorm = change.get("vorm", {})
+
+    zin = change.get("zin", "")
+
+    modified_word = change.get("modified_word")
+    subject = change.get("subject")
+    verb = change.get("verb")
+    auxiliary = change.get("auxiliary")
+    lemma = change.get("lemma")
+
+    # Store the numbered mistake category selected below so callers can
+    # persist or analyze the child's mistake alongside the feedback.
+    change["mistake_type"] = None
+
+    # =========================================================
+    # 1. VERB AGREEMENT
+    # =========================================================
+
+    # Example:
+    # De mensen loop ...
+    # -> De mensen lopen ...
+
+    if (
+        corr_pos == "VERB"
+        and corr_vorm.get("VerbForm") == "Fin"
+        and subject is not None
+    ):
+        change["mistake_type"] = 1
+        context = zin.strip()
+
+        if "___" in context and fout and correctie:
+            wrong_sentence = context.replace("___", fout, 1)
+            correct_sentence = context.replace("___", correctie, 1)
+            return f"Zeggen we '{wrong_sentence}' of '{correct_sentence}'?"
+
+        if fout and correctie:
+            return f"Zeggen we '{fout}' of '{correctie}' bij '{subject}'?"
+
+        return f"Welke vorm past bij '{subject}'?"
+    # =========================================================
+    # 2. PAST PARTICIPLE AFTER AUXILIARY
+    # =========================================================
+
+    # Examples:
+    # Ik heb ... gezoekt -> gezocht
+    # Zij heeft ... verzendt -> verzonden
+    # Hij is ... geglijdt -> gegleden
+
+    if (
+        corr_pos == "VERB"
+        and corr_vorm.get("VerbForm") == "Part"
+        and auxiliary is not None
+        and lemma is not None
+    ):
+        change["mistake_type"] = 2
+        return (
+            f"Bijna! Als je zegt: \"{subject} {auxiliary} ... '{lemma}'\" dan zeggen we: \"{subject} {auxiliary} ... {correctie}.\" Kan jij mij vertellen wat de zin dan is?"
+        )
+
+    # =========================================================
+    # 3. DE / HET
+    # =========================================================
+
+    if fout_lower in {"de", "het"} and modified_word is not None:
+
+        change["mistake_type"] = 3
+
+        return (
+            f"Zeggen we '{fout} {modified_word}' of '{correctie} {modified_word}'? Probeer: \"{zin}\" te herhalen?"
+        )
+
+    # =========================================================
+    # 4. DEZE / DIT
+    # =========================================================
+
+    if fout_lower in {"deze", "dit"} and modified_word is not None:
+
+        change["mistake_type"] = 4
+
+        return (
+            f"Bij het wijzen naar '{modified_word}' zeggen we dan \" {fout} {modified_word}\" of \" {correctie} {modified_word}\"? Kun je dat herhalen?"
+        )
+
+    # =========================================================
+    # 5. DIE / DAT
+    # =========================================================
+
+    if fout_lower in {"die", "dat"} and modified_word is not None:
+
+        change["mistake_type"] = 5
+
+        # Relative pronoun
+        if orig_vorm.get("PronType") == "Rel":
+
+            return (
+                f"Bij het wijzen naar '{modified_word}' zeggen we dan \" {fout} {modified_word}\" of \" {correctie} {modified_word}\"? Kun je de zin herhalen?"
+            )
+
+        # Demonstrative
+        return (
+            f"Bij het wijzen naar '{modified_word}' zeggen we dan \" {fout} {modified_word}\" of \" {correctie} {modified_word}\"? Kun je de volledige zin herhalen?"
+        )
+
+    # =========================================================
+    # 6. DAN / ALS
+    # =========================================================
+
+    if fout_lower in {"dan", "als"} or correctie_lower in {"dan", "als"}:
+
+        change["mistake_type"] = 6
+
+        if fout_lower == "als" and correctie_lower == "dan":
+            return (
+                f"Deze is moeilijk! De woorden zijn ongelijk, dus dan zeggen we '{correctie}'? Kan jij dat herhalen?"
+            )
+
+        if fout_lower == "dan" and correctie_lower == "als":
+            return (
+                f"Deze is moeilijk! De woorden zijn gelijk, dus dan zeggen we '{correctie}'? Kan jij dat herhalen?"
+            )
+
+    # =========================================================
+    # 7. NIET / GEEN
+    # =========================================================
+
+    if fout_lower in {"niet", "geen"} or correctie_lower in {"niet", "geen"}:
+
+        change["mistake_type"] = 7
+
+        if correctie_lower == "geen":
+            return (
+                f"Als we '{modified_word}' ontkennen zeggen we 'geen'. Weet jij wat de zin dan wordt? Vul hem in: {zin}"
+            )
+
+        if correctie_lower == "niet":
+            return (
+                f"Als we de hele zin ontkennen zeggen we 'niet'. Weet jij wat de zin dan wordt? Vul hem in: {zin}"
+            )
+
+    # =========================================================
+    # 8. FIXED PREPOSITION
+    # =========================================================
+
+    # Examples:
+    # interesse op geschiedenis -> interesse in geschiedenis
+
+    if orig_pos == "ADP" and corr_pos == "ADP":
+
+        change["mistake_type"] = 8
+
+        return (
+            f"Welk voorzetsel hoort hier? Is dat '{fout}' of '{correctie}'? Kun je dat herhalen?"
+        )
+
+    # ---------------------------------------------------------
+    # 9. PERSONAL PRONOUN
+    # ---------------------------------------------------------
+
+    if orig_pos == "PRON" and corr_pos == "PRON":
+
+        change["mistake_type"] = 9
+
+        if fout_lower in {"hij", "hem"}:
+            return (
+                f"Zeg je hier: 'hij' of 'hem'?"
+            )
+
+        if fout_lower in {"zij", "haar"}:
+            return (
+                f"Hoe verwijs je hier: 'zij' of 'haar'?"
+            )
+
+        if fout_lower in {"ik", "mij", "me"}:
+            return (
+                f"Hoe verwijs je hier naar jezelf: 'ik' of 'mij'?"
+            )
+
+        if fout_lower in {"jij", "jou"}:
+            return (
+                f"Hoe verwijs je hier: 'jij' of 'jou'?"
+            )
+
+        return (
+            f"Zeggen we hier {fout} of {correctie}?"
+        )
+
+    # =========================================================
+    # 10. GENERIC VERB FEEDBACK
+    # =========================================================
+
+    if corr_pos == "VERB" and lemma is not None:
+
+        change["mistake_type"] = 10
+
+        return (
+            f"Welke vorm van '{lemma}' past hier? Is dat {fout} of {correctie}?"
+        )
+
+    # =========================================================
+    # 11. GENERIC DETERMINER FEEDBACK
+    # =========================================================
+
+    if corr_pos == "DET" and modified_word is not None:
+
+        change["mistake_type"] = 11
+
+        return (
+            f"Kijk goed naar '{fout}'. Hoe zeg je '{correctie}'?"
+        )
+
+    # =========================================================
+    # 12. GENERIC FALLBACK
+    # =========================================================
+    if change.get("operation") == "insert":
+        return (
+            f"Kijk nog eens goed naar je zin, er mist wat in dit deel: \"" + meaningful_changes[0]['zin'] + "\""
+        )
+
+    if fout and correctie:
+        return prompt_EULLM(feedback_prompt, stream_=True)
+    return (
+        prompt_EULLM(feedback_prompt, stream_=True)
+    )
+
 def get_mistake_type(change):
     """
     Classify a grammatical mistake based on extract_changes() output.
@@ -746,6 +971,30 @@ def get_mistake_type(change):
     return None
 
 
+def get_easy_feedback(zin):
+    """Analyseer een zin en geef eenvoudige feedback op de eerste fout."""
+    correctie, _, meaningful_changes = _analyze_grammar(zin)
+
+    if not meaningful_changes:
+        return {
+            "correct": True,
+            "feedback": "Je bent een topper! Goed gedaan.",
+            "correction": correctie,
+            "mistake_type": None
+        }
+
+    change = meaningful_changes[0]
+    feedback_prompt = get_feedback_prompt(meaningful_changes)
+    feedback = check_grammar_easy(change, feedback_prompt)
+
+    return {
+        "correct": False,
+        "feedback": feedback,
+        "correction": correctie,
+        "mistake_type": change.get("mistake_type")
+    }
+
+
 def get_stage_one_feedback_prompt(change):
     return f"""Geef één subtiele, gerichte hint in het Nederlands voor een kind van 8.
 
@@ -773,11 +1022,12 @@ def _analyze_grammar(zin):
     return correctie, changes, meaningful_changes
 
 def get_stage_one_feedback(zin):
-    _, _, meaningful_changes = _analyze_grammar(zin)
+    correctie, _, meaningful_changes = _analyze_grammar(zin)
 
     if not meaningful_changes:
         return {
             "correct": True,
+            "correction": correctie,
             "feedback": "Je bent een topper! Goed gedaan."
         }
     if meaningful_changes[0].get("operation") == "insert":
@@ -790,6 +1040,7 @@ def get_stage_one_feedback(zin):
     return {
         "correct": False,
         "mistake_type": get_mistake_type(meaningful_changes[0]),
+        "correction": correctie,
         "feedback": feedback
     }
 
@@ -800,17 +1051,19 @@ def get_stage_three_feedback(zin):
         return {
             "correct": True,
             "feedback": "Je bent een topper! Goed gedaan.",
+            "correction": correctie,
             "mistake_type": None
         }
 
     return {
         "correct": False,
         "mistake_type": get_mistake_type(meaningful_changes[0]),
+        "correction": correctie,
         "feedback": f"{correctie} Kun je dat herhalen?"
     }
 
 def get_feedback(zin):
-    _, changes, meaningful_changes = _analyze_grammar(zin)
+    correctie, changes, meaningful_changes = _analyze_grammar(zin)
 
     if meaningful_changes:
         feedback_prompt = get_feedback_prompt(changes)
@@ -819,11 +1072,13 @@ def get_feedback(zin):
         return {
             "correct": False,
             "feedback": feedback,
+            "correction": correctie,
             "mistake_type": meaningful_changes[0].get("mistake_type")
         }
     else: 
         return {
             "correct": True,
             "feedback": "Je bent een topper! Goed gedaan.",
+            "correction": correctie,
             "mistake_type": None
         }
