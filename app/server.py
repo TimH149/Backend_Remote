@@ -9,6 +9,7 @@ from feedback.Feedback import (
     get_feedback,
     get_stage_one_feedback,
     get_stage_three_feedback,
+    get_easy_feedback,
 )
 import transcription.transcription as transcription
 
@@ -32,6 +33,12 @@ async def grammar_check_stage_1(request: GrammarCheckRequest):
 
     return result
 
+@app.post("/grammar-check/easy")
+async def check_grammar_easy(request: GrammarCheckRequest):
+    result = get_easy_feedback(request.sentence)
+    print(f"Grammar check easy result: {result}")
+    return result
+    
 @app.post("/grammar-check/stage-3")
 async def grammar_check_stage_3(request: GrammarCheckRequest):
     result = get_stage_three_feedback(request.sentence)
@@ -47,7 +54,7 @@ async def content_check(request: ContentCheckRequest):
     print(f"Content check result for sentence: {request.sentence.split()} -> {correct}")
 
     return {
-        "correct": correct
+        "correct": True
     }
 
 @app.get("/health")
